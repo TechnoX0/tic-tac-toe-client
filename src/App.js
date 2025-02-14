@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { io } from "socket.io-client";
 
-const socket = io("https://tic-tac-toe-server.onrender.com");
+const socket = io("https://tic-tac-toe-server-1ihj.onrender.com");
 
 function App() {
     const [room, setRoom] = useState("");
