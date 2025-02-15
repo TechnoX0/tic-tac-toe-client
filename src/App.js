@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import io from "socket.io-client";
 
-const socket = io("https://tic-tac-toe-server-1ihj.onrender.com");
+const socket = io("wss://desktop-falling-fog-1627.fly.dev", {
+    transports: ["websocket"], // Force WebSocket for lower latency
+});
 
 const App = () => {
     const canvasRef = useRef(null);
