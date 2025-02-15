@@ -1,84 +1,43 @@
-import React, { useEffect, useRef, useState } from "react";
-import io from "socket.io-client";
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
 
-const socket = io("https://tic-tac-toe-server-1ihj.onrender.com");
+const ws = new WebSocket("ws://localhost:3001");
+const players = {};
+let playerId = null;
 
-const App = () => {
-    const canvasRef = useRef(null);
-    const [players, setPlayers] = useState({});
-    const [playerId, setPlayerId] = useState(null);
+ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
 
-    useEffect(() => {
-        socket.on("connect", () => {
-            setPlayerId(socket.id);
-        });
-
-        socket.on("currentPlayers", (serverPlayers) => {
-            setPlayers(serverPlayers);
-        });
-
-        socket.on("newPlayer", (newPlayer) => {
-            setPlayers((prev) => ({ ...prev, [newPlayer.id]: newPlayer }));
-        });
-
-        socket.on("updatePlayer", (updatedPlayer) => {
-            setPlayers((prev) => ({
-                ...prev,
-                [updatedPlayer.id]: updatedPlayer,
-            }));
-        });
-
-        socket.on("removePlayer", (id) => {
-            setPlayers((prev) => {
-                const newPlayers = { ...prev };
-                delete newPlayers[id];
-                return newPlayers;
-            });
-        });
-    }, []);
-
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext("2d");
-
-        const draw = () => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            Object.entries(players).forEach(([id, { x, y }]) => {
-                ctx.fillStyle = id === playerId ? "red" : "blue";
-                ctx.fillRect(x, y, 20, 20);
-            });
-            requestAnimationFrame(draw);
-        };
-
-        draw();
-    }, [players, playerId]);
-
-    useEffect(() => {
-        const handleKeyDown = (e) => {
-            if (!playerId || !players[playerId]) return;
-            let { x, y } = players[playerId];
-            if (e.key === "w") y -= 5;
-            if (e.key === "s") y += 5;
-            if (e.key === "a") x -= 5;
-            if (e.key === "d") x += 5;
-
-            const newPosition = { x, y };
-            setPlayers((prev) => ({ ...prev, [playerId]: newPosition }));
-            socket.emit("playerMove", newPosition);
-        };
-
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [players, playerId]);
-
-    return (
-        <canvas
-            ref={canvasRef}
-            width={800}
-            height={600}
-            style={{ border: "1px solid black" }}
-        />
-    );
+    if (data.type === "init") {
+        playerId = data.id;
+        Object.assign(players, data.players);
+    } else if (data.type === "update") {
+        players[data.id] = { x: data.x, y: data.y };
+    } else if (data.type === "remove") {
+        delete players[data.id];
+    }
 };
 
-export default App;
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (const id in players) {
+        ctx.fillStyle = id === playerId ? "blue" : "red";
+        ctx.fillRect(players[id].x, players[id].y, 20, 20);
+    }
+
+    requestAnimationFrame(draw); // Continuously update the canvas
+}
+
+draw(); // Start the animation loop
+
+document.addEventListener("keydown", (event) => {
+    let dx = 0,
+        dy = 0;
+    if (event.key === "w") dy = -5;
+    if (event.key === "s") dy = 5;
+    if (event.key === "a") dx = -5;
+    if (event.key === "d") dx = 5;
+
+    ws.send(JSON.stringify({ type: "move", dx, dy }));
+});
