@@ -7,6 +7,7 @@ const App = () => {
     const canvasRef = useRef(null);
     const [players, setPlayers] = useState({});
     const [playerId, setPlayerId] = useState(null);
+    const [ping, setPing] = useState(0);
 
     useEffect(() => {
         socket.on("connect", () => {
@@ -35,6 +36,15 @@ const App = () => {
                 return newPlayers;
             });
         });
+
+        socket.on("pongResponse", (sentTime) => {
+            const latency = Date.now() - sentTime;
+            setPing(latency);
+        });
+
+        return () => {
+            socket.disconnect();
+        };
     }, []);
 
     useEffect(() => {
@@ -71,13 +81,24 @@ const App = () => {
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, [players, playerId]);
 
+    useEffect(() => {
+        const pingInterval = setInterval(() => {
+            socket.emit("pingCheck", Date.now());
+        }, 1000);
+
+        return () => clearInterval(pingInterval);
+    }, []);
+
     return (
-        <canvas
-            ref={canvasRef}
-            width={800}
-            height={600}
-            style={{ border: "1px solid black" }}
-        />
+        <div>
+            <h1>Ping: {ping}ms</h1>
+            <canvas
+                ref={canvasRef}
+                width={800}
+                height={600}
+                style={{ border: "1px solid black" }}
+            />
+        </div>
     );
 };
 
