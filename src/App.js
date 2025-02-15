@@ -1,14 +1,15 @@
 import React, { useEffect, useRef, useState } from "react";
 import io from "socket.io-client";
 
-const socket = io("wss://desktop-falling-fog-1627.fly.dev", {
-    transports: ["websocket"], // Force WebSocket for lower latency
+const socket = io("https://tic-tac-toe-server-fcqn.onrender.com", {
+    transports: ["websocket", "polling"],
 });
 
 const App = () => {
     const canvasRef = useRef(null);
-    const [players, setPlayers] = useState({});
     const [playerId, setPlayerId] = useState(null);
+    const [players, setPlayers] = useState({});
+    const [ball, setBall] = useState({ x: 300, y: 200 }); // Ball starts in the middle
     const [ping, setPing] = useState(0);
 
     useEffect(() => {
@@ -39,14 +40,14 @@ const App = () => {
             });
         });
 
+        socket.on("ballUpdate", (serverBall) => {
+            setBall(serverBall);
+        });
+
         socket.on("pongResponse", (sentTime) => {
             const latency = Date.now() - sentTime;
             setPing(latency);
         });
-
-        return () => {
-            socket.disconnect();
-        };
     }, []);
 
     useEffect(() => {
@@ -55,24 +56,35 @@ const App = () => {
 
         const draw = () => {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Ball
+            ctx.fillStyle = "white";
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, 10, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw Paddles
             Object.entries(players).forEach(([id, { x, y }]) => {
                 ctx.fillStyle = id === playerId ? "red" : "blue";
-                ctx.fillRect(x, y, 20, 20);
+                ctx.fillRect(x, y, 10, 80);
             });
+
             requestAnimationFrame(draw);
         };
 
         draw();
-    }, [players, playerId]);
+    }, [players, ball, playerId]);
 
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (!playerId || !players[playerId]) return;
             let { x, y } = players[playerId];
-            if (e.key === "w") y -= 5;
-            if (e.key === "s") y += 5;
-            if (e.key === "a") x -= 5;
-            if (e.key === "d") x += 5;
+
+            if (e.key === "w") y -= 10;
+            if (e.key === "s") y += 10;
+
+            // Ensure paddle stays within bounds
+            y = Math.max(0, Math.min(y, 520)); // Paddle height is 80, canvas height is 600
 
             const newPosition = { x, y };
             setPlayers((prev) => ({ ...prev, [playerId]: newPosition }));
@@ -92,13 +104,15 @@ const App = () => {
     }, []);
 
     return (
-        <div>
-            <h1>Ping: {ping}ms</h1>
+        <div className="grid place-items-center h-screen bg-black">
+            <div className="absolute top-2 left-2 text-white font-bold bg-black p-2 rounded">
+                Ping: {ping} ms
+            </div>
             <canvas
                 ref={canvasRef}
                 width={800}
                 height={600}
-                style={{ border: "1px solid black" }}
+                style={{ border: "1px solid white" }}
             />
         </div>
     );
