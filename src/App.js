@@ -1,96 +1,84 @@
-import React, { useState, useEffect } from "react";
-import { io } from "socket.io-client";
+import React, { useEffect, useRef, useState } from "react";
+import io from "socket.io-client";
 
-const socket = io("https://tic-tac-toe-server-1ihj.onrender.com");
+const socket = io("http://localhost:3001");
 
-function App() {
-    const [room, setRoom] = useState("");
-    const [board, setBoard] = useState(Array(9).fill(""));
-    const [player, setPlayer] = useState("");
-    const [turn, setTurn] = useState("X");
+const App = () => {
+    const canvasRef = useRef(null);
+    const [players, setPlayers] = useState({});
+    const [playerId, setPlayerId] = useState(null);
 
     useEffect(() => {
-        socket.on("roomCreated", (room) => {
-            setPlayer("X");
-            setRoom(room);
+        socket.on("connect", () => {
+            setPlayerId(socket.id);
         });
 
-        socket.on("gameStart", (game) => {
-            setBoard(game.board);
-            setTurn(game.turn);
+        socket.on("currentPlayers", (serverPlayers) => {
+            setPlayers(serverPlayers);
         });
 
-        socket.on("updateBoard", (game) => {
-            setBoard(game.board);
-            setTurn(game.turn);
+        socket.on("newPlayer", (newPlayer) => {
+            setPlayers((prev) => ({ ...prev, [newPlayer.id]: newPlayer }));
         });
 
-        socket.on("playerLeft", () => {
-            alert("Opponent left the game.");
-            setBoard(Array(9).fill(""));
-            setRoom("");
+        socket.on("updatePlayer", (updatedPlayer) => {
+            setPlayers((prev) => ({
+                ...prev,
+                [updatedPlayer.id]: updatedPlayer,
+            }));
+        });
+
+        socket.on("removePlayer", (id) => {
+            setPlayers((prev) => {
+                const newPlayers = { ...prev };
+                delete newPlayers[id];
+                return newPlayers;
+            });
         });
     }, []);
 
-    const createRoom = () => {
-        const roomId = prompt("Enter room name:");
-        socket.emit("createRoom", roomId);
-    };
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext("2d");
 
-    const joinRoom = () => {
-        const roomId = prompt("Enter room name:");
-        socket.emit("joinRoom", roomId);
-        setRoom(roomId);
-        setPlayer("O");
-    };
+        const draw = () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            Object.entries(players).forEach(([id, { x, y }]) => {
+                ctx.fillStyle = id === playerId ? "red" : "blue";
+                ctx.fillRect(x, y, 20, 20);
+            });
+            requestAnimationFrame(draw);
+        };
 
-    const handleMove = (index) => {
-        if (board[index] === "" && player === turn) {
-            socket.emit("makeMove", { room, index });
-        }
-    };
+        draw();
+    }, [players, playerId]);
+
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (!playerId || !players[playerId]) return;
+            let { x, y } = players[playerId];
+            if (e.key === "w") y -= 5;
+            if (e.key === "s") y += 5;
+            if (e.key === "a") x -= 5;
+            if (e.key === "d") x += 5;
+
+            const newPosition = { x, y };
+            setPlayers((prev) => ({ ...prev, [playerId]: newPosition }));
+            socket.emit("playerMove", newPosition);
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [players, playerId]);
 
     return (
-        <div>
-            <h1>Tic-Tac-Toe Multiplayer</h1>
-            {!room && (
-                <div>
-                    <button onClick={createRoom}>Create Room</button>
-                    <button onClick={joinRoom}>Join Room</button>
-                </div>
-            )}
-            <div
-                style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(3, 100px)",
-                }}
-            >
-                {board.map((cell, index) => (
-                    <div
-                        key={index}
-                        style={{
-                            width: "100px",
-                            height: "100px",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            border: "1px solid black",
-                            fontSize: "2em",
-                            cursor: "pointer",
-                        }}
-                        onClick={() => handleMove(index)}
-                    >
-                        {cell}
-                    </div>
-                ))}
-            </div>
-            {room && (
-                <p>
-                    Room: {room} | You are: {player} | Turn: {turn}
-                </p>
-            )}
-        </div>
+        <canvas
+            ref={canvasRef}
+            width={800}
+            height={600}
+            style={{ border: "1px solid black" }}
+        />
     );
-}
+};
 
 export default App;
