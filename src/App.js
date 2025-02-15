@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import io from "socket.io-client";
 
-const socket = io("http://localhost:3001");
+const socket = io("https://tic-tac-toe-server-1ihj.onrender.com");
 
 const App = () => {
     const canvasRef = useRef(null);
